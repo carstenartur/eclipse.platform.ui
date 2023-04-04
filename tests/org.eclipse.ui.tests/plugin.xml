@@ -4664,4 +4664,23 @@
           <run class="org.eclipse.ui.tests.datatransfer.ImportTestUtils$TestBuilder"/>
     </builder>
  </extension>
+ <extension
+       id="virtual-test"
+       name="virtual-test"
+       point="org.eclipse.core.filesystem.filesystems">
+    <filesystem
+          scheme="virtual-test">
+       <run
+             class="org.eclipse.ui.tests.internal.VirtualTestFileSystem">
+       </run>
+    </filesystem>
+ </extension>
+ <extension
+       id="org.eclipse.ui.tests.fragment"
+       point="org.eclipse.e4.workbench.model">
+    <fragment
+          uri="fragment.e4xmi"
+          apply="always">
+    </fragment>
+ </extension>
 </plugin>
