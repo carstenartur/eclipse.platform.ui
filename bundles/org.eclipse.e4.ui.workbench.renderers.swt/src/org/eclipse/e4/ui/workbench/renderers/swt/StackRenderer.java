@@ -81,8 +81,10 @@ import org.eclipse.swt.accessibility.Accessible;
 import org.eclipse.swt.accessibility.AccessibleListener;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabFolder2Adapter;
+import org.eclipse.swt.custom.CTabFolder2Listener;
 import org.eclipse.swt.custom.CTabFolderEvent;
 import org.eclipse.swt.custom.CTabItem;
+import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.ControlListener;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
@@ -172,9 +174,15 @@ public class StackRenderer extends LazyStackRenderer {
 	private static int MIN_EDITOR_CHARS = 15;
 
 	/**
-	 * Spacing for onboarding composite, needed so that tabfolder borders are shown
+	 * Top spacing for onboarding composite, needed so that tabfolder borders are
+	 * shown
 	 */
-	public static final int ONBOARDING_SPACING = 30;
+	public static final int ONBOARDING_TOP_SPACING = 30;
+	/**
+	 * (Left, Right, Bottom) Spacing for onboarding composite, needed so that
+	 * tabfolder borders are shown
+	 */
+	public static final int ONBOARDING_SPACING = 2;
 
 	private Image viewMenuImage;
 	private String viewMenuURI = "platform:/plugin/org.eclipse.e4.ui.workbench.renderers.swt/icons/full/elcl16/view_menu.png"; //$NON-NLS-1$
@@ -704,8 +712,11 @@ public class StackRenderer extends LazyStackRenderer {
 		onboardingText = WidgetFactory.label(SWT.NONE).foreground(color).supplyLayoutData(gridDataFactory::create)
 				.create(onboardingComposite);
 
-		onBoarding.setLocation(ONBOARDING_SPACING, ONBOARDING_SPACING);
-		tabFolder.addPaintListener(e -> setOnboardingControlSize(tabFolder, onBoarding));
+		onBoarding.setLocation(ONBOARDING_SPACING, ONBOARDING_TOP_SPACING);
+		Consumer<ControlEvent> sizeUpdate = e -> setOnboardingControlSize(tabFolder, onBoarding);
+		tabFolder.addControlListener(ControlListener.controlResizedAdapter(sizeUpdate));
+		Consumer<CTabFolderEvent> tabCountUpdate = e -> setOnboardingControlSize(tabFolder, onBoarding);
+		tabFolder.addCTabFolder2Listener(CTabFolder2Listener.itemsCountAdapter(tabCountUpdate));
 
 		tabFolder.addDisposeListener(e -> {
 			if (onboardingImage != null && !onboardingImage.isDisposed() && onboardingImage.getImage() != null
@@ -727,7 +738,7 @@ public class StackRenderer extends LazyStackRenderer {
 			}
 			Rectangle folderBounds = tabFolder.getBounds();
 			int width = folderBounds.width - 2 * ONBOARDING_SPACING;
-			int height = folderBounds.height - 2 * ONBOARDING_SPACING;
+			int height = folderBounds.height - ONBOARDING_TOP_SPACING - ONBOARDING_SPACING;
 			if (!new Point(width, height).equals(onBoarding.getSize())) {
 				onBoarding.setSize(width, height);
 			}
