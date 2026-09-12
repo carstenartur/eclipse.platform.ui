@@ -1,0 +1,69 @@
+name: LTK file count regression verification
+
+on:
+  push:
+    branches: [verify/ltk-file-count]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4def1218bc72033b103c383c4c0f306f2bfb989d
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Record source identity
+        run: |
+          mkdir -p verification-evidence/red verification-evidence/green
+          git rev-parse HEAD | tee verification-evidence/head.txt
+          git diff 14c319b932b7ddc456cb2438d623e81723171f62 HEAD --stat | tee verification-evidence/change-scope.txt
+          mvn --version
+      - name: Reproduce failures using the unchanged upstream implementation
+        shell: bash
+        run: |
+          source=bundles/org.eclipse.ltk.core.refactoring/src/org/eclipse/ltk/core/refactoring/CompositeChange.java
+          git show 14c319b932b7ddc456cb2438d623e81723171f62:"$source" > "$source"
+          set +e
+          mvn -B -ntp clean verify -pl :org.eclipse.ltk.core.refactoring,:org.eclipse.ltk.core.refactoring.tests -Dtest=CompositeChangeTest -Dtycho.surefire.useUIHarness=false -Dtycho.surefire.useUIThread=false 2>&1 | tee verification-evidence/red/maven.log
+          result=${PIPESTATUS[0]}
+          set -e
+          reports=tests/org.eclipse.ltk.core.refactoring.tests/target/surefire-reports
+          test -d "$reports"
+          cp -a "$reports" verification-evidence/red/
+          test "$result" -ne 0
+          report="$reports/TEST-org.eclipse.ltk.core.refactoring.tests.CompositeChangeTest.xml"
+          test -f "$report"
+          grep -q 'tests="13"' "$report"
+          grep -q 'errors="0"' "$report"
+          grep -q '<failure' "$report"
+      - name: Verify the exact corrected source and the entire LTK core test bundle
+        if: always()
+        shell: bash
+        run: |
+          source=bundles/org.eclipse.ltk.core.refactoring/src/org/eclipse/ltk/core/refactoring/CompositeChange.java
+          git restore --source=4def1218bc72033b103c383c4c0f306f2bfb989d -- "$source"
+          git diff --exit-code HEAD -- bundles tests
+          mkdir -p verification-evidence/green
+          mvn -B -ntp clean verify -pl :org.eclipse.ltk.core.refactoring,:org.eclipse.ltk.core.refactoring.tests -Dtycho.surefire.useUIHarness=false -Dtycho.surefire.useUIThread=false 2>&1 | tee verification-evidence/green/maven.log
+      - name: Preserve final reports
+        if: always()
+        run: |
+          reports=tests/org.eclipse.ltk.core.refactoring.tests/target/surefire-reports
+          if test -d "$reports"; then cp -a "$reports" verification-evidence/green/; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ltk-file-count-4def1218-${{ github.run_id }}
+          path: verification-evidence
+          if-no-files-found: error
+          retention-days: 14
